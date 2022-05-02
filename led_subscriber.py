@@ -4,6 +4,16 @@ from datetime import datetime
 from RPi import GPIO
 import sqlite3 as sql
 
+# set pins for status led´s
+RED_LED=17
+GREEN_LED=18
+
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(RED_LED, GPIO.OUT)
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(GREEN_LED, GPIO.OUT)
+
+
 # database connections and queries
 database_connection = sql.connect('iot_project.db', check_same_thread=False)
 
@@ -29,6 +39,7 @@ def create_access_table(connection):
             CREATE TABLE ACCESS_PROTOCOL (
                 access_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
                 valid TEXT,
+                uid TEXT,
                 access_time DATETIME
             );
         """)
@@ -62,7 +73,7 @@ def insert_into_uid_database(uid, holder):
 def insert_access_into_database():
     dt = datetime.now()
     with database_connection:
-        database_connection.execute(sql_access_insertion_query, ("valid", dt))
+        database_connection.execute(sql_access_insertion_query, ("valid", "123456", dt))
 
     database_connection.commit()
 
@@ -85,7 +96,7 @@ def on_message(client, userdata, message):
     if message.topic == MQTT_TOPICS["motion"]:
         message_as_string = message.payload.decode('utf-8')
         print("Motion detected: " + message_as_string)
-
+        GPIO.output(RED_LED,True)
         insert_access_into_database()
 
     if message.topic == MQTT_TOPICS["rfid"]:
