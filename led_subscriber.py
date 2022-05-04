@@ -4,33 +4,33 @@ from datetime import datetime
 from RPi import GPIO
 import sqlite3 as sql
 
-# set pins for status led´s
-RED_LED=17
+# set pins for status led
+RED_LED=10
 GREEN_LED=18
 
-GPIO.setmode(GPIO.BCM)
+GPIO.setmode(GPIO.BOARD)
 GPIO.setup(RED_LED, GPIO.OUT)
-GPIO.setmode(GPIO.BCM)
+GPIO.setmode(GPIO.BOARD)
 GPIO.setup(GREEN_LED, GPIO.OUT)
 
+GPIO.output(RED_LED, True)
 
 # database connections and queries
 database_connection = sql.connect('iot_project.db', check_same_thread=False)
 
 db_cursor = database_connection.cursor()
-db_cursor.execute("DROP TABLE ACCESS_PROTOCOL")
+
+
 
 ACCESS_PROTOCOL_TABLE = "ACCESS_PROTOCOL"
 UID_TABLE = "VALID_UIDS"
 
 database_connection.commit()
 
-sql_access_insertion_query = ''' INSERT INTO ACCESS_PROTOCOL(valid,access_time)
-              VALUES(?,?,?) '''
-sql_uid_insertion_query = ''' INSERT INTO VALID_UIDS(rfid_uid,holder)
-              VALUES(?,?,?) '''
+sql_access_insertion_query = ''' INSERT INTO ACCESS_PROTOCOL(valid,uid,holder,access_time)
+              VALUES(?,?,?,?) '''
 
-sql_uid_search_query = ''' SELECT rfid_uid FROM VALID_UIDS WHERE rfid_uid = ?'''
+
 
 
 def create_access_table(connection):
@@ -40,6 +40,7 @@ def create_access_table(connection):
                 access_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
                 valid TEXT,
                 uid TEXT,
+                holder TEXT,
                 access_time DATETIME
             );
         """)
@@ -63,28 +64,26 @@ def query_table(connection, table):
             print(row)
 
 
-def insert_into_uid_database(uid, holder):
-    with database_connection:
-        database_connection.execute(sql_access_insertion_query, (uid, holder))
-
-    database_connection.commit()
 
 
-def insert_access_into_database():
+
+def insert_access_into_database(uid, holder, validity):
     dt = datetime.now()
     with database_connection:
-        database_connection.execute(sql_access_insertion_query, ("valid", "123456", dt))
+        database_connection.execute(sql_access_insertion_query, (validity,uid,holder,dt))
 
     database_connection.commit()
+
+    
 
 
 # mqtt callbacks
 MQTT_TOPICS = {
     "motion": "motion",
-    "rfid": "rfid"
+    "rfid": "/id"
 }
 
-authentication_attempt = False
+fraud = False
 
 
 def on_connect(client, userdata, flags, rc):
@@ -92,24 +91,31 @@ def on_connect(client, userdata, flags, rc):
 
 
 def on_message(client, userdata, message):
-
+    
+    global fraud
+    
     if message.topic == MQTT_TOPICS["motion"]:
         message_as_string = message.payload.decode('utf-8')
         print("Motion detected: " + message_as_string)
-        GPIO.output(RED_LED,True)
-        insert_access_into_database()
+        GPIO.output(RED_LED, False)
+        fraud = True
 
     if message.topic == MQTT_TOPICS["rfid"]:
-        message_as_string = message.payload.decode('utf-8')
-        print("RFID authentication attempted with UID: " + message_as_string)
-
-        print(database_connection.execute(
-            sql_uid_search_query, (message_as_string,)))
+        if fraud:
+            GPIO.output(RED_LED, True)
+            
+        messages_decoded = message.payload
+        messages = messages_decoded.split(";")
+    
+        insert_access_into_database("valid",messages[0].decode('utf-8'),messages[1].decode('utf-8').rstrip())
+        
+        print("RFID authentication attempted with UID: " + messages[0].decode('utf-8')+ " from user " + messages[1].decode('utf-8').rstrip())
+        time.sleep(5)
+ 
 
 
 # main program
-MQTT_ADDRESS = input("Please specify broker IP address: ")
-
+MQTT_ADDRESS = str(raw_input("Please specify broker IP address: "))
 
 CLIENT = mqttClient.Client("Python")
 CLIENT.on_connect = on_connect
@@ -120,7 +126,7 @@ CLIENT.loop_start()
 
 # create tables, if not already created
 create_access_table(database_connection)
-create_valid_uid_table(database_connection)
+
 
 try:
     CLIENT.on_message = on_message
@@ -129,7 +135,9 @@ try:
 
 except KeyboardInterrupt:
     query_table(database_connection, ACCESS_PROTOCOL_TABLE)
+    db_cursor.execute("DROP TABLE ACCESS_PROTOCOL")
     database_connection.close()
     print("exiting")
     CLIENT.disconnect()
     CLIENT.loop_stop()
+    GPIO.cleanup()
