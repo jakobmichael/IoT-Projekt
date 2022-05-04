@@ -6,12 +6,11 @@ import sqlite3 as sql
 
 # set pins for status led
 RED_LED=10
-GREEN_LED=18
+
 
 GPIO.setmode(GPIO.BOARD)
 GPIO.setup(RED_LED, GPIO.OUT)
-GPIO.setmode(GPIO.BOARD)
-GPIO.setup(GREEN_LED, GPIO.OUT)
+
 
 GPIO.output(RED_LED, True)
 
@@ -21,16 +20,12 @@ database_connection = sql.connect('iot_project.db', check_same_thread=False)
 db_cursor = database_connection.cursor()
 
 
-
 ACCESS_PROTOCOL_TABLE = "ACCESS_PROTOCOL"
-UID_TABLE = "VALID_UIDS"
 
 database_connection.commit()
 
 sql_access_insertion_query = ''' INSERT INTO ACCESS_PROTOCOL(valid,uid,holder,access_time)
               VALUES(?,?,?,?) '''
-
-
 
 
 def create_access_table(connection):
@@ -42,17 +37,6 @@ def create_access_table(connection):
                 uid TEXT,
                 holder TEXT,
                 access_time DATETIME
-            );
-        """)
-
-
-def create_valid_uid_table(connection):
-    with connection:
-        connection.execute("""
-            CREATE TABLE VALID_UIDS (
-                uid_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-                rfid_uid TEXT,
-                holder DATETIME
             );
         """)
 
