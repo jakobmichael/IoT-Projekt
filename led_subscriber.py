@@ -22,7 +22,7 @@ db_cursor = database_connection.cursor()
 
 ACCESS_PROTOCOL_TABLE = "ACCESS_PROTOCOL"
 
-database_connection.commit()
+
 
 sql_access_insertion_query = ''' INSERT INTO ACCESS_PROTOCOL(valid,uid,holder,access_time)
               VALUES(?,?,?,?) '''

@@ -1,0 +1,9 @@
+import RPi.GPIO as GPIO
+
+PIR_SENSOR_PIN = 23
+
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(PIR_SENSOR_PIN, GPIO.IN)
+
+GPIO.output(PIR_SENSOR_PIN, False)
+
